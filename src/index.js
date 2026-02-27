@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import { pool } from "./config/db.js";
 
 dotenv.config();
 
@@ -15,3 +16,7 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 1000;
 app.listen(PORT, () => console.log("Server started"));
+
+pool.connect()
+	.then(() => console.log("DB connected ✅"))
+	.catch(err => console.log(err));
