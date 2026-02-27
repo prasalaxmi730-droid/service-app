@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { pool } from "./config/db.js";
+import { initDB } from "./config/initDb.js";
 
 dotenv.config();
 
@@ -18,5 +19,12 @@ const PORT = process.env.PORT || 1000;
 app.listen(PORT, () => console.log("Server started"));
 
 pool.connect()
-	.then(() => console.log("DB connected ✅"))
+	.then(async () => {
+		console.log("DB connected ✅");
+		try {
+			await initDB();
+		} catch (err) {
+			console.log(err);
+		}
+	})
 	.catch(err => console.log(err));
