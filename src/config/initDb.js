@@ -50,6 +50,55 @@ export const initDB = async () => {
     );
   `);
 
+  // Backward-compatible migrations for already-existing deployments.
+  await pool.query(
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'technician';"
+  );
+
+  await pool.query(
+    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS sync_status VARCHAR(20) NOT NULL DEFAULT 'PENDING';"
+  );
+  await pool.query(
+    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS sync_attempts INTEGER NOT NULL DEFAULT 0;"
+  );
+  await pool.query(
+    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS sync_error TEXT;"
+  );
+  await pool.query(
+    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP;"
+  );
+  await pool.query(
+    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'MEDIUM';"
+  );
+  await pool.query(
+    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS scheduled_date DATE;"
+  );
+  await pool.query(
+    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;"
+  );
+
+  await pool.query(
+    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS photo_url TEXT;"
+  );
+  await pool.query(
+    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS signature_data TEXT;"
+  );
+  await pool.query(
+    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS sync_status VARCHAR(20) NOT NULL DEFAULT 'PENDING';"
+  );
+  await pool.query(
+    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS sync_attempts INTEGER NOT NULL DEFAULT 0;"
+  );
+  await pool.query(
+    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS sync_error TEXT;"
+  );
+  await pool.query(
+    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP;"
+  );
+  await pool.query(
+    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;"
+  );
+
   await pool.query(
     "CREATE INDEX IF NOT EXISTS idx_service_calls_sync_status ON service_calls(sync_status);"
   );
