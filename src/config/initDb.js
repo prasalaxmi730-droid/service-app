@@ -173,14 +173,21 @@ export const initDB = async () => {
     );
   }
 
-  // Seed a few assigned calls for app-flow testing (idempotent).
-  await pool.query(
-    `INSERT INTO service_calls
+  // Seed a few assigned calls for app-flow testing (idempotent, no unique constraint required).
+  await pool.query(`
+    INSERT INTO service_calls
       (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-     VALUES
-      ('SAP-2001', 'Delta Foods', 'Bengaluru', 'Cooling unit temperature spikes', 'PENDING', 'Ravi', 'HIGH', CURRENT_DATE, 'PENDING'),
-      ('SAP-2002', 'Metro Hospitals', 'Hyderabad', 'Generator auto-start failure', 'PENDING', 'Ravi', 'MEDIUM', CURRENT_DATE + INTERVAL '1 day', 'PENDING'),
-      ('SAP-2003', 'Skyline Textiles', 'Chennai', 'Compressor vibration above threshold', 'PENDING', 'Ravi', 'LOW', CURRENT_DATE + INTERVAL '2 day', 'PENDING')
-     ON CONFLICT (sap_call_id) DO NOTHING;`
-  );
+    SELECT 'SAP-2001', 'Delta Foods', 'Bengaluru', 'Cooling unit temperature spikes', 'PENDING', 'Ravi', 'HIGH', CURRENT_DATE, 'PENDING'
+    WHERE NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2001');
+
+    INSERT INTO service_calls
+      (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+    SELECT 'SAP-2002', 'Metro Hospitals', 'Hyderabad', 'Generator auto-start failure', 'PENDING', 'Ravi', 'MEDIUM', CURRENT_DATE + INTERVAL '1 day', 'PENDING'
+    WHERE NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2002');
+
+    INSERT INTO service_calls
+      (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+    SELECT 'SAP-2003', 'Skyline Textiles', 'Chennai', 'Compressor vibration above threshold', 'PENDING', 'Ravi', 'LOW', CURRENT_DATE + INTERVAL '2 day', 'PENDING'
+    WHERE NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2003');
+  `);
 };
