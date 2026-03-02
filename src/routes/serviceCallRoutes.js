@@ -1,45 +1,70 @@
 import express from "express";
 import { pool } from "../config/db.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
+import { requireRole } from "../middleware/roleMiddleware.js";
 
 const router = express.Router();
 
 router.get("/", authMiddleware, async (req, res) => {
   const status = req.query.status;
+  const isAdmin = req.user?.role === "admin";
+  const technician = req.user?.username;
 
-  const query = status
-    ? {
-        text: "SELECT * FROM service_calls WHERE status = $1 ORDER BY id DESC",
-        values: [status],
-      }
-    : {
-        text: "SELECT * FROM service_calls ORDER BY id DESC",
-        values: [],
-      };
+  let query;
+  if (isAdmin) {
+    query = status
+      ? {
+          text: "SELECT * FROM service_calls WHERE status = $1 ORDER BY id DESC",
+          values: [status],
+        }
+      : {
+          text: "SELECT * FROM service_calls ORDER BY id DESC",
+          values: [],
+        };
+  } else {
+    query = status
+      ? {
+          text: `SELECT * FROM service_calls
+                 WHERE assigned_technician = $1 AND status = $2
+                 ORDER BY id DESC`,
+          values: [technician, status],
+        }
+      : {
+          text: `SELECT * FROM service_calls
+                 WHERE assigned_technician = $1
+                 ORDER BY id DESC`,
+          values: [technician],
+        };
+  }
 
   const result = await pool.query(query.text, query.values);
   return res.json(result.rows);
 });
 
 router.get("/:id", authMiddleware, async (req, res) => {
-  const result = await pool.query("SELECT * FROM service_calls WHERE id = $1", [
-    req.params.id,
-  ]);
+  const isAdmin = req.user?.role === "admin";
+  const result = await pool.query(
+    "SELECT * FROM service_calls WHERE id = $1",
+    [req.params.id]
+  );
 
   if (result.rowCount === 0) {
     return res.status(404).json({ error: "Service call not found" });
   }
 
+  if (!isAdmin && result.rows[0].assigned_technician !== req.user.username) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
   return res.json(result.rows[0]);
 });
 
-router.post("/", authMiddleware, async (req, res) => {
+router.post("/", authMiddleware, requireRole("admin"), async (req, res) => {
   const {
     sap_call_id,
     customer_name,
     location,
     problem_description,
-    status,
     assigned_technician,
     priority,
     scheduled_date,
@@ -52,14 +77,13 @@ router.post("/", authMiddleware, async (req, res) => {
   const result = await pool.query(
     `INSERT INTO service_calls
       (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-     VALUES ($1,$2,$3,$4,COALESCE($5,'OPEN'),$6,COALESCE($7,'MEDIUM'),$8,'PENDING')
+     VALUES ($1,$2,$3,$4,'PENDING',$5,COALESCE($6,'MEDIUM'),$7,'PENDING')
      RETURNING *`,
     [
       sap_call_id || null,
       customer_name,
       location || null,
       problem_description || null,
-      status || null,
       assigned_technician || null,
       priority || null,
       scheduled_date || null,

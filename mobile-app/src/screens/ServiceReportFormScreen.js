@@ -12,6 +12,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import SignatureScreen from "react-native-signature-canvas";
 import { api } from "../services/api";
+import { theme } from "../theme";
 
 export default function ServiceReportFormScreen({ route, navigation }) {
   const { serviceCall } = route.params;
@@ -83,6 +84,11 @@ export default function ServiceReportFormScreen({ route, navigation }) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.callSummary}>
+        <Text style={styles.callTitle}>{serviceCall.customer_name}</Text>
+        <Text style={styles.callMeta}>Call #{serviceCall.id}</Text>
+      </View>
+
       <Text style={styles.label}>Technician Name</Text>
       <TextInput style={styles.input} value={technicianName} onChangeText={setTechnicianName} />
 
@@ -101,7 +107,12 @@ export default function ServiceReportFormScreen({ route, navigation }) {
       <TouchableOpacity style={styles.secondaryButton} onPress={pickPhoto}>
         <Text style={styles.secondaryText}>{photo ? "Change Photo" : "Select Photo"}</Text>
       </TouchableOpacity>
-      {photo ? <Image source={{ uri: photo.uri }} style={styles.photo} /> : null}
+      {photo ? (
+        <>
+          <Image source={{ uri: photo.uri }} style={styles.photo} />
+          <Text style={styles.photoName}>{photo.fileName || "Selected image"}</Text>
+        </>
+      ) : null}
 
       <Text style={styles.label}>Signature Capture</Text>
       <View style={styles.signatureWrap}>
@@ -127,41 +138,65 @@ export default function ServiceReportFormScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f7fb" },
-  content: { padding: 14, paddingBottom: 24 },
-  label: { color: "#0b1f44", fontWeight: "700", marginBottom: 6, marginTop: 10 },
-  input: {
-    backgroundColor: "#fff",
+  container: { flex: 1, backgroundColor: theme.colors.background },
+  content: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
+  callSummary: {
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: "#dce4f3",
-    borderRadius: 8,
-    padding: 10,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
   },
-  textArea: { minHeight: 100, textAlignVertical: "top" },
-  secondaryButton: {
-    backgroundColor: "#fff",
+  callTitle: {
+    color: theme.colors.text,
+    fontWeight: "800",
+    fontSize: 17,
+  },
+  callMeta: {
+    color: theme.colors.textMuted,
+    marginTop: 3,
+  },
+  label: {
+    color: theme.colors.text,
+    fontWeight: "700",
+    marginBottom: 6,
+    marginTop: 10,
+  },
+  input: {
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: "#0f62fe",
-    borderRadius: 8,
-    paddingVertical: 10,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    padding: 10,
+    color: theme.colors.text,
+  },
+  textArea: { minHeight: 110, textAlignVertical: "top" },
+  secondaryButton: {
+    backgroundColor: "#F1F8FF",
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    borderRadius: theme.radius.md,
+    paddingVertical: 11,
     alignItems: "center",
   },
-  secondaryText: { color: "#0f62fe", fontWeight: "700" },
-  photo: { width: "100%", height: 180, borderRadius: 8, marginTop: 10 },
+  secondaryText: { color: theme.colors.primary, fontWeight: "700" },
+  photo: { width: "100%", height: 180, borderRadius: theme.radius.sm, marginTop: 10 },
+  photoName: { marginTop: 5, color: theme.colors.textMuted, fontSize: 12 },
   signatureWrap: {
     height: 220,
     borderWidth: 1,
-    borderColor: "#dce4f3",
-    borderRadius: 8,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
     overflow: "hidden",
-    backgroundColor: "#fff",
+    backgroundColor: theme.colors.surface,
   },
   button: {
     marginTop: 16,
-    backgroundColor: "#0f62fe",
-    borderRadius: 10,
-    paddingVertical: 12,
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radius.md,
+    paddingVertical: 13,
     alignItems: "center",
   },
-  buttonText: { color: "#fff", fontWeight: "700" },
+  buttonText: { color: "#fff", fontWeight: "800" },
 });

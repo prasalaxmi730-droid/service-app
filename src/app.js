@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import authRoutes from "./routes/authRoutes.js";
 import serviceCallRoutes from "./routes/serviceCallRoutes.js";
 import serviceReportRoutes from "./routes/serviceReportRoutes.js";
+import serviceReportListRoutes from "./routes/serviceReportListRoutes.js";
 import syncRoutes from "./routes/syncRoutes.js";
 
 const app = express();
@@ -28,6 +29,7 @@ app.get("/", (req, res) => {
 app.use("/auth", authRoutes);
 app.use("/service-calls", serviceCallRoutes);
 app.use("/service-report", serviceReportRoutes);
+app.use("/service-reports", serviceReportListRoutes);
 app.use("/sync-sap", syncRoutes);
 
 app.use((err, req, res, next) => {

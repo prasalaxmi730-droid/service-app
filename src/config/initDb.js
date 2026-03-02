@@ -19,7 +19,7 @@ export const initDB = async () => {
       customer_name VARCHAR(255) NOT NULL,
       location VARCHAR(255),
       problem_description TEXT,
-      status VARCHAR(30) NOT NULL DEFAULT 'OPEN',
+      status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
       assigned_technician VARCHAR(120),
       priority VARCHAR(20) DEFAULT 'MEDIUM',
       scheduled_date DATE,
@@ -76,6 +76,20 @@ export const initDB = async () => {
   await pool.query(
     "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;"
   );
+  await pool.query(
+    "ALTER TABLE service_calls ALTER COLUMN status SET DEFAULT 'PENDING';"
+  );
+  await pool.query(
+    "UPDATE service_calls SET status = 'PENDING' WHERE status = 'OPEN';"
+  );
+  await pool.query(
+    `ALTER TABLE service_calls DROP CONSTRAINT IF EXISTS service_calls_status_check;`
+  );
+  await pool.query(
+    `ALTER TABLE service_calls
+     ADD CONSTRAINT service_calls_status_check
+     CHECK (status IN ('PENDING', 'COMPLETED'));`
+  );
 
   await pool.query(
     "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS photo_url TEXT;"
@@ -106,6 +120,30 @@ export const initDB = async () => {
     "CREATE INDEX IF NOT EXISTS idx_service_reports_sync_status ON service_reports(sync_status);"
   );
 
+  // Automation: once a service report is created, mark related call as COMPLETED.
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION set_call_completed_on_report_insert()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      UPDATE service_calls
+      SET status = 'COMPLETED',
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = NEW.service_call_id;
+
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+  `);
+
+  await pool.query(`
+    DROP TRIGGER IF EXISTS trg_service_report_insert_complete_call ON service_reports;
+    CREATE TRIGGER trg_service_report_insert_complete_call
+    AFTER INSERT ON service_reports
+    FOR EACH ROW
+    EXECUTE FUNCTION set_call_completed_on_report_insert();
+  `);
+
   const defaultUsername = process.env.ADMIN_USERNAME || "technician";
   const defaultPassword = process.env.ADMIN_PASSWORD || "ChangeMe123!";
 
@@ -122,4 +160,27 @@ export const initDB = async () => {
     );
     console.log(`Created default user: ${defaultUsername}`);
   }
+
+  const techExists = await pool.query(
+    "SELECT id FROM users WHERE username = $1",
+    ["Ravi"]
+  );
+  if (techExists.rowCount === 0) {
+    const techHash = await bcrypt.hash("Ravi@1234", 10);
+    await pool.query(
+      "INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)",
+      ["Ravi", techHash, "technician"]
+    );
+  }
+
+  // Seed a few assigned calls for app-flow testing (idempotent).
+  await pool.query(
+    `INSERT INTO service_calls
+      (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+     VALUES
+      ('SAP-2001', 'Delta Foods', 'Bengaluru', 'Cooling unit temperature spikes', 'PENDING', 'Ravi', 'HIGH', CURRENT_DATE, 'PENDING'),
+      ('SAP-2002', 'Metro Hospitals', 'Hyderabad', 'Generator auto-start failure', 'PENDING', 'Ravi', 'MEDIUM', CURRENT_DATE + INTERVAL '1 day', 'PENDING'),
+      ('SAP-2003', 'Skyline Textiles', 'Chennai', 'Compressor vibration above threshold', 'PENDING', 'Ravi', 'LOW', CURRENT_DATE + INTERVAL '2 day', 'PENDING')
+     ON CONFLICT (sap_call_id) DO NOTHING;`
+  );
 };

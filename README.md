@@ -19,9 +19,11 @@ field-service-backend/
       initDb.js
     middleware/
       authMiddleware.js
+      roleMiddleware.js
     routes/
       authRoutes.js
       serviceCallRoutes.js
+      serviceReportListRoutes.js
       serviceReportRoutes.js
       syncRoutes.js
     services/
@@ -31,6 +33,8 @@ field-service-backend/
   uploads/
   mobile-app/
     App.js
+    app.json
+    eas.json
     package.json
     src/
       config/env.js
@@ -57,6 +61,8 @@ Schema SQL: `database/schema.sql`
 ### Auth
 - `POST /auth/login`
 - `GET /auth/me`
+- `POST /auth/users` (admin only)
+- `GET /auth/users` (admin only)
 
 ### Required business APIs
 - `GET /service-calls`
@@ -66,6 +72,8 @@ Schema SQL: `database/schema.sql`
 ### Additional utility
 - `GET /service-calls/:id`
 - `POST /service-calls`
+- `GET /service-reports`
+- `GET /service-reports/:id`
 
 ## SAP Integration Module
 Implemented in `src/services/sapService.js`:
@@ -88,6 +96,9 @@ Both tables include:
 JWT implemented:
 - Login returns bearer token
 - Protected routes require `Authorization: Bearer <token>`
+- Role-based access:
+  - `admin`: full access
+  - `technician`: only assigned calls and related reports
 
 ## Environment Variables
 Copy `.env.example` to `.env` and update values.
@@ -132,6 +143,10 @@ Default seeded user from env:
 
 Change these in `.env` for production.
 
+Additional seeded technician:
+- Username: `Ravi`
+- Password: `Ravi@1234`
+
 ### 3. Mobile App
 1. Move to mobile app folder:
    ```bash
@@ -148,11 +163,41 @@ Change these in `.env` for production.
 4. Android emulator backend URL is set to `http://10.0.2.2:5001` in `mobile-app/src/config/env.js`.
    - For physical device, change this to your machine IP.
 
-### 4. SAP Sync
+### 4. Multiuser Setup
+1. Login as admin.
+2. Create technician users:
+   - `POST /auth/users`
+3. Create calls with `assigned_technician` matching technician username.
+4. Technician logs in and sees only assigned calls/reports.
+
+### 5. SAP Sync
 Call:
 - `POST /sync-sap`
 
 Use a JWT token in Authorization header.
+
+### 6. Android Build (Play Store Path)
+1. Install EAS CLI:
+   ```bash
+   npm install -g eas-cli
+   ```
+2. Login:
+   ```bash
+   eas login
+   ```
+3. Configure once:
+   ```bash
+   cd mobile-app
+   eas build:configure
+   ```
+4. Build testing APK:
+   ```bash
+   eas build -p android --profile preview
+   ```
+5. Build Play Store AAB:
+   ```bash
+   eas build -p android --profile production
+   ```
 
 ## Deployment Ready
 - Dockerfile included for backend containerization.

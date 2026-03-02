@@ -33,7 +33,7 @@ router.post("/", authMiddleware, async (req, res) => {
     await pool.query(
       `INSERT INTO service_calls
         (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status, last_synced_at, sync_attempts, sync_error)
-       VALUES ($1,$2,$3,$4,COALESCE($5,'OPEN'),$6,COALESCE($7,'MEDIUM'),$8,'SYNCED',CURRENT_TIMESTAMP,0,NULL)
+       VALUES ($1,$2,$3,$4,COALESCE($5,'PENDING'),$6,COALESCE($7,'MEDIUM'),$8,'SYNCED',CURRENT_TIMESTAMP,0,NULL)
        ON CONFLICT (sap_call_id)
        DO UPDATE SET
          customer_name = EXCLUDED.customer_name,
@@ -52,7 +52,7 @@ router.post("/", authMiddleware, async (req, res) => {
         customerName,
         call.location || null,
         call.problem_description || call.problemDescription || null,
-        call.status || "OPEN",
+        call.status || "PENDING",
         call.assigned_technician || call.assignedTechnician || null,
         call.priority || "MEDIUM",
         call.scheduled_date || call.scheduledDate || null,
