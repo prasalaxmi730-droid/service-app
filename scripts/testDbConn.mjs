@@ -6,9 +6,8 @@ import { pool } from '../src/config/db.js';
 const run = async () => {
   try {
     console.log('Using DATABASE_URL:', process.env.DATABASE_URL ? '[SET]' : '[NOT SET]');
-    const client = await pool.connect();
-    console.log('DB connected (test) ✅');
-    client.release();
+    const result = await pool.query('SELECT 1 as is_alive');
+    console.log('DB connected (test) ✅', result.rows[0]);
     await pool.end();
     process.exit(0);
   } catch (err) {
