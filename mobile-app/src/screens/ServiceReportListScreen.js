@@ -35,7 +35,9 @@ export default function ServiceReportListScreen({ route, navigation }) {
         ? `/service-reports?service_call_id=${serviceCallId}`
         : "/service-reports";
       const response = await api.get(endpoint);
-      setItems(response.data || []);
+      // Filter to only show reports for COMPLETED calls (redundant if using trigger, but safe)
+      const data = response.data || [];
+      setItems(data.filter(item => item.status === "COMPLETED"));
     } finally {
       setLoading(false);
     }

@@ -29,7 +29,7 @@ app.get("/", (req, res) => {
 // Since authRoutes maps /login natively, mounting it on / handles POST /login
 app.use("/", authRoutes);
 app.use("/service-calls", serviceCallRoutes);
-app.use("/submit-fsr", serviceReportRoutes);
+app.use("/submit-report", serviceReportRoutes);
 app.use("/service-reports", serviceReportListRoutes);
 app.use("/sync-sap", syncRoutes);
 

@@ -36,7 +36,7 @@ const testFullFlow = async (token) => {
 
     // 2. Submit a report
     console.log(`Submitting report for call #${pendingCall.id}...`);
-    const reportRes = await axios.post(`${BASE_URL}/submit-fsr`, {
+    const reportRes = await axios.post(`${BASE_URL}/submit-report`, {
       service_call_id: pendingCall.id,
       technician_name: 'technician',
       visit_date: new Date().toISOString().split('T')[0],

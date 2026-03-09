@@ -27,12 +27,15 @@ export default function ServiceCallListScreen({ navigation, onLogout }) {
   const loadServiceCalls = async () => {
     setLoading(true);
     try {
-      const response = await api.get("/service-calls?status=PENDING");
+      const response = await api.get("/service-calls");
       setItems(response.data || []);
     } finally {
       setLoading(false);
     }
   };
+
+  const pendingCalls = items.filter(i => normalizeStatus(i.status) === "PENDING");
+  const completedCalls = items.filter(i => normalizeStatus(i.status) === "COMPLETED");
 
   useFocusEffect(
     useCallback(() => {
@@ -58,53 +61,64 @@ export default function ServiceCallListScreen({ navigation, onLogout }) {
     });
   }, [navigation, onLogout]);
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.headerBlock}>
-        <Text style={styles.heading}>Pending Calls</Text>
-        <Text style={styles.subheading}>Tap a call to view details and submit report.</Text>
+  const renderItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => navigation.navigate("ServiceCallDetail", { call: item })}
+    >
+      <View style={styles.rowTop}>
+        <Text style={styles.customer}>{item.customer_name}</Text>
+        <View
+          style={[
+            styles.statusPill,
+            {
+              backgroundColor: `${statusColor[normalizeStatus(item.status)] || theme.colors.primary}22`,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.statusText,
+              { color: statusColor[normalizeStatus(item.status)] || theme.colors.primary },
+            ]}
+          >
+            {normalizeStatus(item.status)}
+          </Text>
+        </View>
       </View>
 
+      <Text style={styles.meta}>#{item.id} • {item.priority || "MEDIUM"} Priority</Text>
+      <Text style={styles.meta}>Technician: {item.assigned_technician || "Unassigned"}</Text>
+      <Text style={styles.meta}>Location: {item.location || "No location"}</Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={styles.container}>
       {loading && items.length === 0 ? (
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={items}
-          keyExtractor={item => String(item.id)}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={loadServiceCalls} />}
-          contentContainerStyle={{ paddingBottom: 18 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => navigation.navigate("ServiceCallDetail", { call: item })}
-            >
-              <View style={styles.rowTop}>
-                <Text style={styles.customer}>{item.customer_name}</Text>
-                <View
-                  style={[
-                    styles.statusPill,
-                    {
-                      backgroundColor: `${statusColor[normalizeStatus(item.status)] || theme.colors.primary}22`,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusText,
-                      { color: statusColor[normalizeStatus(item.status)] || theme.colors.primary },
-                    ]}
-                  >
-                    {normalizeStatus(item.status)}
-                  </Text>
-                </View>
+          data={[]} // Triggering headers for sections
+          ListHeaderComponent={() => (
+            <>
+              <View style={styles.headerBlock}>
+                <Text style={styles.heading}>Pending Calls</Text>
+                <Text style={styles.subheading}>Tasks waiting for your FSR submission.</Text>
               </View>
+              {pendingCalls.map(item => <View key={item.id}>{renderItem({ item })}</View>)}
+              {pendingCalls.length === 0 && <Text style={styles.empty}>No pending calls</Text>}
 
-              <Text style={styles.meta}>#{item.id} • {item.priority || "MEDIUM"} Priority</Text>
-              <Text style={styles.meta}>Technician: {item.assigned_technician || "Unassigned"}</Text>
-              <Text style={styles.meta}>Location: {item.location || "No location"}</Text>
-            </TouchableOpacity>
+              <View style={styles.headerBlock}>
+                <Text style={styles.heading}>Completed Calls</Text>
+                <Text style={styles.subheading}>FSRs already submitted.</Text>
+              </View>
+              {completedCalls.map(item => <View key={item.id}>{renderItem({ item })}</View>)}
+              {completedCalls.length === 0 && <Text style={styles.empty}>No completed calls</Text>}
+            </>
           )}
-          ListEmptyComponent={<Text style={styles.empty}>No service calls found</Text>}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={loadServiceCalls} />}
+          contentContainerStyle={{ paddingBottom: 30 }}
         />
       )}
     </View>
