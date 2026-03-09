@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -42,11 +41,6 @@ export default function LoginScreen({ onLogin }) {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.hero}>
-        <Image
-          source={require("../../assets/prasa-logo.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
         <Text style={styles.appLabel}>Field Service Platform</Text>
         <Text style={styles.heading}>Technician Login</Text>
         <Text style={styles.subheading}>Access your assigned calls and submit reports quickly.</Text>
@@ -95,11 +89,6 @@ const styles = StyleSheet.create({
   hero: {
     marginBottom: theme.spacing.lg,
     alignItems: "center",
-  },
-  logo: {
-    width: 140,
-    height: 140,
-    marginBottom: 10,
   },
   appLabel: {
     color: theme.colors.primary,
