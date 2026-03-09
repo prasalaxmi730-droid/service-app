@@ -18,6 +18,11 @@ const syncColor = {
   FAILED: theme.colors.danger,
 };
 
+const statusColor = {
+  PENDING: theme.colors.warning,
+  COMPLETED: theme.colors.success,
+};
+
 export default function ServiceReportListScreen({ route, navigation }) {
   const serviceCallId = route.params?.serviceCallId;
   const [items, setItems] = useState([]);
@@ -67,16 +72,18 @@ export default function ServiceReportListScreen({ route, navigation }) {
                 <View
                   style={[
                     styles.syncPill,
-                    { backgroundColor: `${syncColor[item.sync_status] || theme.colors.primary}22` },
+                    { 
+                      backgroundColor: `${statusColor[item.status] || theme.colors.primary}22` 
+                    },
                   ]}
                 >
                   <Text
                     style={[
                       styles.syncText,
-                      { color: syncColor[item.sync_status] || theme.colors.primary },
+                      { color: statusColor[item.status] || theme.colors.primary },
                     ]}
                   >
-                    {item.sync_status}
+                    {item.status || "COMPLETED"}
                   </Text>
                 </View>
               </View>

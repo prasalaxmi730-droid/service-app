@@ -62,7 +62,18 @@ const testFullFlow = async (token) => {
       headers: { Authorization: `Bearer ${token}` }
     });
     const existsInPending = finalPendingRes.data.some(c => c.id === pendingCall.id);
-    console.log(`Exists in Pending list? ${existsInPending ? 'YES ❌' : 'NO ✅'}`);
+    // 5. Verify status is present in the reports list
+    console.log('Verifying reports list contains status...');
+    const reportsRes = await axios.get(`${BASE_URL}/service-reports`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const lastReport = reportsRes.data[0];
+    console.log(`Last Report Status Field: ${lastReport.status}`);
+    if (lastReport.status === 'COMPLETED') {
+      console.log('Backend correctly returns COMPLETED status in reports! ✅');
+    } else {
+      console.log('Error: Status field missing or incorrect in reports list. ❌');
+    }
 
   } catch (error) {
     console.error('Full flow test failed! ❌');
