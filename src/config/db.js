@@ -11,8 +11,30 @@ if (typeof connectionString !== "string" || connectionString.trim() === "") {
   );
 }
 
+// mssql/tedious doesn't automatically parse connection strings like pg does
+// we need to parse it or use an object
+let config;
+try {
+  const url = new URL(connectionString);
+  
+  config = {
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    server: url.hostname,
+    database: url.pathname.replace("/", ""),
+    port: url.port ? parseInt(url.port, 10) : 1433,
+    options: {
+      encrypt: url.searchParams.get("encrypt") === "true",
+      trustServerCertificate: false, 
+    },
+  };
+} catch (error) {
+  console.error("Failed to parse DATABASE_URL. Is it a valid URL format?");
+  throw error;
+}
+
 // Global pool promise to reuse the connection
-const poolPromise = new sql.ConnectionPool(connectionString)
+const poolPromise = new sql.ConnectionPool(config)
   .connect()
   .then((pool) => {
     console.log("Connected to SQL Server");
@@ -20,6 +42,7 @@ const poolPromise = new sql.ConnectionPool(connectionString)
   })
   .catch((err) => {
     console.error("Database connection failed", err);
+    throw err;
   });
 
 export { sql, poolPromise };
