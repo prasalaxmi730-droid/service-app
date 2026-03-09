@@ -26,7 +26,7 @@ export default function LoginScreen({ onLogin }) {
 
     try {
       setLoading(true);
-      const response = await api.post("/auth/login", { username, password });
+      const response = await api.post("/login", { username, password });
       onLogin(response.data.token, response.data.user);
     } catch (error) {
       Alert.alert("Login failed", error.response?.data?.error || error.message);

@@ -1,5 +1,5 @@
 import express from "express";
-import { pool } from "../config/db.js";
+import { poolPromise } from "../config/db.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import { requireRole } from "../middleware/roleMiddleware.js";
 
@@ -10,53 +10,48 @@ router.get("/", authMiddleware, async (req, res) => {
   const isAdmin = req.user?.role === "admin";
   const technician = req.user?.username;
 
-  let query;
+  const pool = await poolPromise;
+  const request = pool.request();
+  let queryText = "";
+
   if (isAdmin) {
-    query = status
-      ? {
-          text: "SELECT * FROM service_calls WHERE status = $1 ORDER BY id DESC",
-          values: [status],
-        }
-      : {
-          text: "SELECT * FROM service_calls ORDER BY id DESC",
-          values: [],
-        };
+    if (status) {
+      request.input("status", status);
+      queryText = "SELECT * FROM service_calls WHERE status = @status ORDER BY id DESC";
+    } else {
+      queryText = "SELECT * FROM service_calls ORDER BY id DESC";
+    }
   } else {
-    query = status
-      ? {
-          text: `SELECT * FROM service_calls
-                 WHERE assigned_technician = $1 AND status = $2
-                 ORDER BY id DESC`,
-          values: [technician, status],
-        }
-      : {
-          text: `SELECT * FROM service_calls
-                 WHERE assigned_technician = $1
-                 ORDER BY id DESC`,
-          values: [technician],
-        };
+    request.input("technician", technician);
+    if (status) {
+      request.input("status", status);
+      queryText = "SELECT * FROM service_calls WHERE assigned_technician = @technician AND status = @status ORDER BY id DESC";
+    } else {
+      queryText = "SELECT * FROM service_calls WHERE assigned_technician = @technician ORDER BY id DESC";
+    }
   }
 
-  const result = await pool.query(query.text, query.values);
-  return res.json(result.rows);
+  const result = await request.query(queryText);
+  return res.json(result.recordset);
 });
 
 router.get("/:id", authMiddleware, async (req, res) => {
   const isAdmin = req.user?.role === "admin";
-  const result = await pool.query(
-    "SELECT * FROM service_calls WHERE id = $1",
-    [req.params.id]
-  );
+  const pool = await poolPromise;
+  const result = await pool.request()
+    .input("id", req.params.id)
+    .query("SELECT * FROM service_calls WHERE id = @id");
 
-  if (result.rowCount === 0) {
+  if (result.recordset.length === 0) {
     return res.status(404).json({ error: "Service call not found" });
   }
 
-  if (!isAdmin && result.rows[0].assigned_technician !== req.user.username) {
+  const serviceCall = result.recordset[0];
+  if (!isAdmin && serviceCall.assigned_technician !== req.user.username) {
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  return res.json(result.rows[0]);
+  return res.json(serviceCall);
 });
 
 router.post("/", authMiddleware, requireRole("admin"), async (req, res) => {
@@ -74,23 +69,34 @@ router.post("/", authMiddleware, requireRole("admin"), async (req, res) => {
     return res.status(400).json({ error: "customer_name is required" });
   }
 
-  const result = await pool.query(
-    `INSERT INTO service_calls
-      (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-     VALUES ($1,$2,$3,$4,'PENDING',$5,COALESCE($6,'MEDIUM'),$7,'PENDING')
-     RETURNING *`,
-    [
-      sap_call_id || null,
-      customer_name,
-      location || null,
-      problem_description || null,
-      assigned_technician || null,
-      priority || null,
-      scheduled_date || null,
-    ]
-  );
+  const pool = await poolPromise;
+  const request = pool.request();
+  
+  if (sap_call_id) request.input("sap_call_id", sap_call_id);
+  request.input("customer_name", customer_name);
+  if (location) request.input("location", location);
+  if (problem_description) request.input("problem_description", problem_description);
+  if (assigned_technician) request.input("assigned_technician", assigned_technician);
+  request.input("priority", priority || "MEDIUM");
+  if (scheduled_date) request.input("scheduled_date", scheduled_date);
 
-  return res.status(201).json(result.rows[0]);
+  const result = await request.query(`
+    INSERT INTO service_calls
+      (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+    OUTPUT inserted.*
+    VALUES 
+      (${sap_call_id ? "@sap_call_id" : "NULL"}, 
+       @customer_name, 
+       ${location ? "@location" : "NULL"}, 
+       ${problem_description ? "@problem_description" : "NULL"}, 
+       'PENDING', 
+       ${assigned_technician ? "@assigned_technician" : "NULL"}, 
+       @priority, 
+       ${scheduled_date ? "@scheduled_date" : "NULL"}, 
+       'PENDING')
+  `);
+
+  return res.status(201).json(result.recordset[0]);
 });
 
 export default router;

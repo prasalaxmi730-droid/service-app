@@ -1,193 +1,150 @@
 import bcrypt from "bcryptjs";
-import { pool } from "./db.js";
+import { poolPromise } from "./db.js";
 
 export const initDB = async () => {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id BIGSERIAL PRIMARY KEY,
+  const pool = await poolPromise;
+
+  // Create tables
+  await pool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='users' AND xtype='U')
+    CREATE TABLE users (
+      id BIGINT IDENTITY(1,1) PRIMARY KEY,
       username VARCHAR(120) UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
+      password_hash NVARCHAR(MAX) NOT NULL,
       role VARCHAR(50) NOT NULL DEFAULT 'technician',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS service_calls (
-      id BIGSERIAL PRIMARY KEY,
+  await pool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='service_calls' AND xtype='U')
+    CREATE TABLE service_calls (
+      id BIGINT IDENTITY(1,1) PRIMARY KEY,
       sap_call_id VARCHAR(100) UNIQUE,
-      customer_name VARCHAR(255) NOT NULL,
-      location VARCHAR(255),
-      problem_description TEXT,
+      customer_name NVARCHAR(255) NOT NULL,
+      location NVARCHAR(255),
+      problem_description NVARCHAR(MAX),
       status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
       assigned_technician VARCHAR(120),
       priority VARCHAR(20) DEFAULT 'MEDIUM',
       scheduled_date DATE,
       sync_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
       sync_attempts INTEGER NOT NULL DEFAULT 0,
-      sync_error TEXT,
-      last_synced_at TIMESTAMP,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      sync_error NVARCHAR(MAX),
+      last_synced_at DATETIME2,
+      created_at DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS service_reports (
-      id BIGSERIAL PRIMARY KEY,
-      service_call_id BIGINT NOT NULL REFERENCES service_calls(id) ON DELETE CASCADE,
+  await pool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='service_reports' AND xtype='U')
+    CREATE TABLE service_reports (
+      id BIGINT IDENTITY(1,1) PRIMARY KEY,
+      service_call_id BIGINT NOT NULL CONSTRAINT FK_Report_ServiceCall FOREIGN KEY REFERENCES service_calls(id) ON DELETE CASCADE,
       technician_name VARCHAR(120) NOT NULL,
       visit_date DATE NOT NULL,
-      resolution_notes TEXT NOT NULL,
-      photo_url TEXT,
-      signature_data TEXT,
+      resolution_notes NVARCHAR(MAX) NOT NULL,
+      photo_url NVARCHAR(MAX),
+      signature_data NVARCHAR(MAX),
       sync_status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
       sync_attempts INTEGER NOT NULL DEFAULT 0,
-      sync_error TEXT,
-      last_synced_at TIMESTAMP,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      sync_error NVARCHAR(MAX),
+      last_synced_at DATETIME2,
+      created_at DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME2 NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
-  // Backward-compatible migrations for already-existing deployments.
-  await pool.query(
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'technician';"
-  );
-
-  await pool.query(
-    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS sync_status VARCHAR(20) NOT NULL DEFAULT 'PENDING';"
-  );
-  await pool.query(
-    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS sync_attempts INTEGER NOT NULL DEFAULT 0;"
-  );
-  await pool.query(
-    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS sync_error TEXT;"
-  );
-  await pool.query(
-    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP;"
-  );
-  await pool.query(
-    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'MEDIUM';"
-  );
-  await pool.query(
-    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS scheduled_date DATE;"
-  );
-  await pool.query(
-    "ALTER TABLE service_calls ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;"
-  );
-  await pool.query(
-    "ALTER TABLE service_calls ALTER COLUMN status SET DEFAULT 'PENDING';"
-  );
-  await pool.query(
-    "UPDATE service_calls SET status = 'PENDING' WHERE status = 'OPEN';"
-  );
-  await pool.query(
-    `ALTER TABLE service_calls DROP CONSTRAINT IF EXISTS service_calls_status_check;`
-  );
-  await pool.query(
-    `ALTER TABLE service_calls
-     ADD CONSTRAINT service_calls_status_check
-     CHECK (status IN ('PENDING', 'COMPLETED'));`
-  );
-
-  await pool.query(
-    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS photo_url TEXT;"
-  );
-  await pool.query(
-    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS signature_data TEXT;"
-  );
-  await pool.query(
-    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS sync_status VARCHAR(20) NOT NULL DEFAULT 'PENDING';"
-  );
-  await pool.query(
-    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS sync_attempts INTEGER NOT NULL DEFAULT 0;"
-  );
-  await pool.query(
-    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS sync_error TEXT;"
-  );
-  await pool.query(
-    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP;"
-  );
-  await pool.query(
-    "ALTER TABLE service_reports ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;"
-  );
-
-  await pool.query(
-    "CREATE INDEX IF NOT EXISTS idx_service_calls_sync_status ON service_calls(sync_status);"
-  );
-  await pool.query(
-    "CREATE INDEX IF NOT EXISTS idx_service_reports_sync_status ON service_reports(sync_status);"
-  );
-
-  // Automation: once a service report is created, mark related call as COMPLETED.
-  await pool.query(`
-    CREATE OR REPLACE FUNCTION set_call_completed_on_report_insert()
-    RETURNS TRIGGER AS $$
+  // Indexes
+  await pool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_service_calls_sync_status' AND object_id = OBJECT_ID('service_calls'))
     BEGIN
-      UPDATE service_calls
-      SET status = 'COMPLETED',
-          sync_status = 'PENDING',
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = NEW.service_call_id;
+        CREATE INDEX idx_service_calls_sync_status ON service_calls(sync_status);
+    END
+  `);
 
-      RETURN NEW;
+  await pool.request().query(`
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_service_reports_sync_status' AND object_id = OBJECT_ID('service_reports'))
+    BEGIN
+        CREATE INDEX idx_service_reports_sync_status ON service_reports(sync_status);
+    END
+  `);
+
+  // Trigger for automation: once a service report is created, mark related call as COMPLETED.
+  await pool.request().query(`
+    CREATE OR ALTER TRIGGER trg_service_report_insert_complete_call
+    ON service_reports
+    AFTER INSERT
+    AS
+    BEGIN
+        SET NOCOUNT ON;
+        
+        UPDATE sc
+        SET 
+            sc.status = 'COMPLETED',
+            sc.sync_status = 'PENDING',
+            sc.updated_at = CURRENT_TIMESTAMP
+        FROM service_calls sc
+        INNER JOIN inserted i ON sc.id = i.service_call_id;
     END;
-    $$ LANGUAGE plpgsql;
   `);
 
-  await pool.query(`
-    DROP TRIGGER IF EXISTS trg_service_report_insert_complete_call ON service_reports;
-    CREATE TRIGGER trg_service_report_insert_complete_call
-    AFTER INSERT ON service_reports
-    FOR EACH ROW
-    EXECUTE FUNCTION set_call_completed_on_report_insert();
-  `);
-
+  // Seed default Users
   const defaultUsername = process.env.ADMIN_USERNAME || "technician";
   const defaultPassword = process.env.ADMIN_PASSWORD || "ChangeMe123!";
 
-  const existingUser = await pool.query(
-    "SELECT id FROM users WHERE username = $1",
-    [defaultUsername]
-  );
+  const existingUser = await pool.request()
+    .input("username", defaultUsername)
+    .query("SELECT id FROM users WHERE username = @username");
 
-  if (existingUser.rowCount === 0) {
+  if (existingUser.recordset.length === 0) {
     const passwordHash = await bcrypt.hash(defaultPassword, 10);
-    await pool.query(
-      "INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)",
-      [defaultUsername, passwordHash, "admin"]
-    );
+    await pool.request()
+      .input("username", defaultUsername)
+      .input("passwordHash", passwordHash)
+      .input("role", "admin")
+      .query("INSERT INTO users (username, password_hash, role) VALUES (@username, @passwordHash, @role)");
     console.log(`Created default user: ${defaultUsername}`);
   }
 
-  const techExists = await pool.query(
-    "SELECT id FROM users WHERE username = $1",
-    ["Ravi"]
-  );
-  if (techExists.rowCount === 0) {
+  const techExists = await pool.request()
+    .input("username", "Ravi")
+    .query("SELECT id FROM users WHERE username = @username");
+
+  if (techExists.recordset.length === 0) {
     const techHash = await bcrypt.hash("Ravi@1234", 10);
-    await pool.query(
-      "INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)",
-      ["Ravi", techHash, "technician"]
-    );
+    await pool.request()
+      .input("username", "Ravi")
+      .input("passwordHash", techHash)
+      .input("role", "technician")
+      .query("INSERT INTO users (username, password_hash, role) VALUES (@username, @passwordHash, @role)");
   }
 
-  // Seed a few assigned calls for app-flow testing (idempotent, no unique constraint required).
-  await pool.query(`
-    INSERT INTO service_calls
-      (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-    SELECT 'SAP-2001', 'Delta Foods', 'Bengaluru', 'Cooling unit temperature spikes', 'PENDING', 'Ravi', 'HIGH', CURRENT_DATE, 'PENDING'
-    WHERE NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2001');
+  // Seed default Service Calls
+  await pool.request().query(`
+    IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2001')
+    BEGIN
+      INSERT INTO service_calls
+        (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+      VALUES 
+        ('SAP-2001', 'Delta Foods', 'Bengaluru', 'Cooling unit temperature spikes', 'PENDING', 'Ravi', 'HIGH', CAST(GETDATE() AS DATE), 'PENDING')
+    END
 
-    INSERT INTO service_calls
-      (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-    SELECT 'SAP-2002', 'Metro Hospitals', 'Hyderabad', 'Generator auto-start failure', 'PENDING', 'Ravi', 'MEDIUM', CURRENT_DATE + INTERVAL '1 day', 'PENDING'
-    WHERE NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2002');
+    IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2002')
+    BEGIN
+      INSERT INTO service_calls
+        (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+      VALUES 
+        ('SAP-2002', 'Metro Hospitals', 'Hyderabad', 'Generator auto-start failure', 'PENDING', 'Ravi', 'MEDIUM', CAST(DATEADD(day, 1, GETDATE()) AS DATE), 'PENDING')
+    END
 
-    INSERT INTO service_calls
-      (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-    SELECT 'SAP-2003', 'Skyline Textiles', 'Chennai', 'Compressor vibration above threshold', 'PENDING', 'Ravi', 'LOW', CURRENT_DATE + INTERVAL '2 day', 'PENDING'
-    WHERE NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2003');
+    IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2003')
+    BEGIN
+      INSERT INTO service_calls
+        (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+      VALUES 
+        ('SAP-2003', 'Skyline Textiles', 'Chennai', 'Compressor vibration above threshold', 'PENDING', 'Ravi', 'LOW', CAST(DATEADD(day, 2, GETDATE()) AS DATE), 'PENDING')
+    END
   `);
 };

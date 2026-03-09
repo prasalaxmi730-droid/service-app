@@ -1,19 +1,25 @@
 import dotenv from "dotenv";
-import pkg from "pg";
+import sql from "mssql";
 
 dotenv.config();
 
-const { Pool } = pkg;
-const isProduction = process.env.NODE_ENV === "production";
 const connectionString = process.env.DATABASE_URL;
 
 if (typeof connectionString !== "string" || connectionString.trim() === "") {
   throw new Error(
-    "DATABASE_URL is missing or invalid. Set a valid PostgreSQL connection string in .env"
+    "DATABASE_URL is missing or invalid. Set a valid SQL Server connection string in .env"
   );
 }
 
-export const pool = new Pool({
-  connectionString,
-  ssl: isProduction ? { rejectUnauthorized: false } : false,
-});
+// Global pool promise to reuse the connection
+const poolPromise = new sql.ConnectionPool(connectionString)
+  .connect()
+  .then((pool) => {
+    console.log("Connected to SQL Server");
+    return pool;
+  })
+  .catch((err) => {
+    console.error("Database connection failed", err);
+  });
+
+export { sql, poolPromise };

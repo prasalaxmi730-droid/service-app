@@ -69,7 +69,7 @@ export default function ServiceReportFormScreen({ route, navigation }) {
         });
       }
 
-      await api.post("/service-report", form, {
+      await api.post("/submit-fsr", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
