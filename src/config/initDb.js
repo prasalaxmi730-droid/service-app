@@ -120,29 +120,38 @@ export const initDB = async () => {
       );
     }
 
+    // Ensure unique constraint exists on sap_call_id (may be missing if table was created in a prior failed run)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'service_calls_sap_call_id_key'
+        ) THEN
+          ALTER TABLE service_calls ADD CONSTRAINT service_calls_sap_call_id_key UNIQUE (sap_call_id);
+        END IF;
+      END $$;
+    `);
+
     // Seed default Service Calls
     await client.query(`
       INSERT INTO service_calls
         (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-      VALUES
-        ('SAP-2001', 'Delta Foods', 'Bengaluru', 'Cooling unit temperature spikes', 'PENDING', 'Ravi', 'HIGH', CURRENT_DATE, 'PENDING')
-      ON CONFLICT (sap_call_id) DO NOTHING;
+      SELECT 'SAP-2001', 'Delta Foods', 'Bengaluru', 'Cooling unit temperature spikes', 'PENDING', 'Ravi', 'HIGH', CURRENT_DATE, 'PENDING'
+      WHERE NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2001');
     `);
 
     await client.query(`
       INSERT INTO service_calls
         (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-      VALUES
-        ('SAP-2002', 'Metro Hospitals', 'Hyderabad', 'Generator auto-start failure', 'PENDING', 'Ravi', 'MEDIUM', CURRENT_DATE + INTERVAL '1 day', 'PENDING')
-      ON CONFLICT (sap_call_id) DO NOTHING;
+      SELECT 'SAP-2002', 'Metro Hospitals', 'Hyderabad', 'Generator auto-start failure', 'PENDING', 'Ravi', 'MEDIUM', CURRENT_DATE + INTERVAL '1 day', 'PENDING'
+      WHERE NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2002');
     `);
 
     await client.query(`
       INSERT INTO service_calls
         (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-      VALUES
-        ('SAP-2003', 'Skyline Textiles', 'Chennai', 'Compressor vibration above threshold', 'PENDING', 'Ravi', 'LOW', CURRENT_DATE + INTERVAL '2 days', 'PENDING')
-      ON CONFLICT (sap_call_id) DO NOTHING;
+      SELECT 'SAP-2003', 'Skyline Textiles', 'Chennai', 'Compressor vibration above threshold', 'PENDING', 'Ravi', 'LOW', CURRENT_DATE + INTERVAL '2 days', 'PENDING'
+      WHERE NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2003');
     `);
   } finally {
     client.release();
