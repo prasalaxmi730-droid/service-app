@@ -95,10 +95,6 @@ export default function ServiceCallListScreen({ navigation, onLogout }) {
 
   return (
     <View style={styles.container}>
-      {loading && items.length === 0 ? (
-        <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
-  return (
-    <View style={styles.container}>
       <View style={styles.headerBlock}>
         <Text style={styles.heading}>Pending Calls</Text>
         <Text style={styles.subheading}>Tasks waiting for your FSR submission.</Text>
