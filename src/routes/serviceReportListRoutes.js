@@ -1,5 +1,5 @@
 import express from "express";
-import { pool } from "../config/db.js";
+import { poolPromise } from "../config/db.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -9,17 +9,18 @@ router.get("/", authMiddleware, async (req, res) => {
   const isAdmin = req.user?.role === "admin";
   const technician = req.user?.username;
 
+  const pool = await poolPromise;
+  const request = pool.request();
   let queryText = "";
-  let params = [];
 
   if (isAdmin) {
     if (serviceCallId) {
+      request.input("serviceCallId", serviceCallId);
       queryText = `SELECT sr.*, sc.customer_name, sc.sap_call_id
                  FROM service_reports sr
                  JOIN service_calls sc ON sc.id = sr.service_call_id
-                 WHERE sr.service_call_id = $1
+                 WHERE sr.service_call_id = @serviceCallId
                  ORDER BY sr.id DESC`;
-      params = [serviceCallId];
     } else {
       queryText = `SELECT sr.*, sc.customer_name, sc.sap_call_id
                  FROM service_reports sr
@@ -27,44 +28,44 @@ router.get("/", authMiddleware, async (req, res) => {
                  ORDER BY sr.id DESC`;
     }
   } else {
+    request.input("technician", technician);
     if (serviceCallId) {
+      request.input("serviceCallId", serviceCallId);
       queryText = `SELECT sr.*, sc.customer_name, sc.sap_call_id
                  FROM service_reports sr
                  JOIN service_calls sc ON sc.id = sr.service_call_id
-                 WHERE sr.service_call_id = $1
-                   AND (sc.assigned_technician = $2 OR sr.technician_name = $2)
+                 WHERE sr.service_call_id = @serviceCallId
+                   AND (sc.assigned_technician = @technician OR sr.technician_name = @technician)
                  ORDER BY sr.id DESC`;
-      params = [serviceCallId, technician];
     } else {
       queryText = `SELECT sr.*, sc.customer_name, sc.sap_call_id
                  FROM service_reports sr
                  JOIN service_calls sc ON sc.id = sr.service_call_id
-                 WHERE sc.assigned_technician = $1 OR sr.technician_name = $1
+                 WHERE sc.assigned_technician = @technician OR sr.technician_name = @technician
                  ORDER BY sr.id DESC`;
-      params = [technician];
     }
   }
 
-  const result = await pool.query(queryText, params);
-  return res.json(result.rows);
+  const result = await request.query(queryText);
+  return res.json(result.recordset);
 });
 
 router.get("/:id", authMiddleware, async (req, res) => {
   const isAdmin = req.user?.role === "admin";
-
-  const result = await pool.query(
-    `SELECT sr.*, sc.customer_name, sc.sap_call_id, sc.assigned_technician
+  
+  const pool = await poolPromise;
+  const result = await pool.request()
+    .input("id", req.params.id)
+    .query(`SELECT sr.*, sc.customer_name, sc.sap_call_id, sc.assigned_technician
      FROM service_reports sr
      JOIN service_calls sc ON sc.id = sr.service_call_id
-     WHERE sr.id = $1`,
-    [req.params.id]
-  );
+     WHERE sr.id = @id`);
 
-  if (result.rows.length === 0) {
+  if (result.recordset.length === 0) {
     return res.status(404).json({ error: "Service report not found" });
   }
 
-  const report = result.rows[0];
+  const report = result.recordset[0];
   if (
     !isAdmin &&
     report.assigned_technician !== req.user.username &&

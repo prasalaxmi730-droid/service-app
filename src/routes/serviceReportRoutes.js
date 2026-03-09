@@ -1,7 +1,7 @@
 import express from "express";
 import multer from "multer";
 import path from "path";
-import { pool } from "../config/db.js";
+import { poolPromise } from "../config/db.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import { pushServiceReportToSAP } from "../services/sapService.js";
 
@@ -33,16 +33,16 @@ router.post("/", authMiddleware, upload.single("photo"), async (req, res) => {
     });
   }
 
-  const callResult = await pool.query(
-    "SELECT id, sap_call_id, assigned_technician FROM service_calls WHERE id = $1",
-    [service_call_id]
-  );
+  const pool = await poolPromise;
+  const callResult = await pool.request()
+    .input("service_call_id", service_call_id)
+    .query("SELECT id, sap_call_id, assigned_technician FROM service_calls WHERE id = @service_call_id");
 
-  if (callResult.rows.length === 0) {
+  if (callResult.recordset.length === 0) {
     return res.status(404).json({ error: "Service call not found" });
   }
 
-  const call = callResult.rows[0];
+  const call = callResult.recordset[0];
   const isAdmin = req.user?.role === "admin";
   if (!isAdmin && call.assigned_technician && call.assigned_technician !== req.user.username) {
     return res.status(403).json({ error: "Forbidden" });
@@ -52,22 +52,29 @@ router.post("/", authMiddleware, upload.single("photo"), async (req, res) => {
 
   const photoUrl = req.file ? `/uploads/${path.basename(req.file.path)}` : null;
 
-  const reportResult = await pool.query(
-    `INSERT INTO service_reports
-      (service_call_id, technician_name, visit_date, resolution_notes, photo_url, signature_data, sync_status)
-    VALUES ($1, $2, $3, $4, $5, $6, 'PENDING')
-    RETURNING *`,
-    [
-      service_call_id,
-      effectiveTechnicianName,
-      visit_date,
-      resolution_notes,
-      photoUrl,
-      signature_data || null,
-    ]
-  );
+  const request = pool.request();
+  request.input("service_call_id", service_call_id);
+  request.input("technician_name", effectiveTechnicianName);
+  request.input("visit_date", visit_date);
+  request.input("resolution_notes", resolution_notes);
+  if (photoUrl) request.input("photo_url", photoUrl);
+  if (signature_data) request.input("signature_data", signature_data);
 
-  const createdReport = reportResult.rows[0];
+  const reportResult = await request.query(`
+    INSERT INTO service_reports
+      (service_call_id, technician_name, visit_date, resolution_notes, photo_url, signature_data, sync_status)
+    OUTPUT inserted.*
+    VALUES 
+      (@service_call_id, 
+       @technician_name, 
+       @visit_date, 
+       @resolution_notes, 
+       ${photoUrl ? "@photo_url" : "NULL"}, 
+       ${signature_data ? "@signature_data" : "NULL"}, 
+       'PENDING')
+  `);
+
+  const createdReport = reportResult.recordset[0];
   const sapPayload = {
     ...createdReport,
     sap_call_id: call.sap_call_id,
@@ -77,14 +84,16 @@ router.post("/", authMiddleware, upload.single("photo"), async (req, res) => {
     const sapResult = await pushServiceReportToSAP(sapPayload);
 
     if (sapResult?.skipped) {
-      await pool.query(
-        `UPDATE service_reports
-         SET sync_status = 'PENDING',
-             sync_error = $2,
-             updated_at = NOW()
-         WHERE id = $1`,
-        [createdReport.id, sapResult.reason || "SAP not configured"]
-      );
+      await pool.request()
+        .input("id", createdReport.id)
+        .input("error", sapResult.reason || "SAP not configured")
+        .query(`
+          UPDATE service_reports
+          SET sync_status = 'PENDING',
+              sync_error = @error,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = @id
+        `);
 
       return res.status(201).json({
         ...createdReport,
@@ -93,48 +102,54 @@ router.post("/", authMiddleware, upload.single("photo"), async (req, res) => {
       });
     }
 
-    const syncedReport = await pool.query(
-      `UPDATE service_reports
-       SET sync_status = 'SYNCED',
-           sync_attempts = sync_attempts + 1,
-           last_synced_at = NOW(),
-           sync_error = NULL,
-           updated_at = NOW()
-       WHERE id = $1
-       RETURNING *`,
-      [createdReport.id]
-    );
+    const syncedReport = await pool.request()
+      .input("id", createdReport.id)
+      .query(`
+        UPDATE service_reports
+        SET sync_status = 'SYNCED',
+            sync_attempts = sync_attempts + 1,
+            last_synced_at = CURRENT_TIMESTAMP,
+            sync_error = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        OUTPUT inserted.*
+        WHERE id = @id
+      `);
 
-    await pool.query(
-      `UPDATE service_calls
-       SET sync_status = 'SYNCED',
-           last_synced_at = NOW(),
-           sync_error = NULL,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [service_call_id]
-    );
+    await pool.request()
+      .input("id", service_call_id)
+      .query(`
+        UPDATE service_calls
+        SET sync_status = 'SYNCED',
+            last_synced_at = CURRENT_TIMESTAMP,
+            sync_error = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = @id
+      `);
 
-    return res.status(201).json(syncedReport.rows[0]);
+    return res.status(201).json(syncedReport.recordset[0]);
   } catch (error) {
-    await pool.query(
-      `UPDATE service_reports
-       SET sync_status = 'FAILED',
-           sync_attempts = sync_attempts + 1,
-           sync_error = $2,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [createdReport.id, error.message || "Failed to sync report to SAP"]
-    );
+    await pool.request()
+      .input("id", createdReport.id)
+      .input("error", error.message || "Failed to sync report to SAP")
+      .query(`
+        UPDATE service_reports
+        SET sync_status = 'FAILED',
+            sync_attempts = sync_attempts + 1,
+            sync_error = @error,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = @id
+      `);
 
-    await pool.query(
-      `UPDATE service_calls
-       SET sync_status = 'FAILED',
-           sync_error = $2,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [service_call_id, error.message || "Failed to sync report to SAP"]
-    );
+    await pool.request()
+      .input("id", service_call_id)
+      .input("error", error.message || "Failed to sync report to SAP")
+      .query(`
+        UPDATE service_calls
+        SET sync_status = 'FAILED',
+            sync_error = @error,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = @id
+      `);
 
     return res.status(201).json({
       ...createdReport,

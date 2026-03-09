@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import pg from "pg";
+import sql from "mssql";
 
 dotenv.config();
 
@@ -7,23 +7,43 @@ const connectionString = process.env.DATABASE_URL;
 
 if (typeof connectionString !== "string" || connectionString.trim() === "") {
   throw new Error(
-    "DATABASE_URL is missing or invalid. Set a valid PostgreSQL connection string in .env"
+    "DATABASE_URL is missing or invalid. Set a valid SQL Server connection string in .env"
   );
 }
 
-const pool = new pg.Pool({
-  connectionString,
-  ssl: process.env.NODE_ENV === "production"
-    ? { rejectUnauthorized: false }
-    : false,
-});
+// Support both URL and semicolon formats
+let config;
+if (connectionString.includes("://")) {
+  try {
+    const url = new URL(connectionString);
+    config = {
+      user: decodeURIComponent(url.username),
+      password: decodeURIComponent(url.password),
+      server: url.hostname,
+      database: url.pathname.replace("/", "") || url.searchParams.get("database"),
+      port: url.port ? parseInt(url.port, 10) : 1433,
+      options: {
+        encrypt: true, // Always true for Azure/Render
+        trustServerCertificate: true,
+      },
+    };
+  } catch (err) {
+    // If URL parsing fails, fallback to treating it as a raw connection string
+    config = connectionString;
+  }
+} else {
+  config = connectionString;
+}
 
-pool.on("connect", () => {
-  console.log("Connected to PostgreSQL");
-});
+const poolPromise = new sql.ConnectionPool(config)
+  .connect()
+  .then((pool) => {
+    console.log("Connected to SQL Server");
+    return pool;
+  })
+  .catch((err) => {
+    console.error("Database connection failed", err);
+    throw err;
+  });
 
-pool.on("error", (err) => {
-  console.error("Unexpected PostgreSQL pool error", err);
-});
-
-export { pool };
+export { sql, poolPromise };

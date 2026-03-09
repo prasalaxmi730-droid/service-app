@@ -1,7 +1,7 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { pool } from "../config/db.js";
+import { poolPromise } from "../config/db.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import { requireRole } from "../middleware/roleMiddleware.js";
 
@@ -14,16 +14,16 @@ router.post("/login", async (req, res) => {
     return res.status(400).json({ error: "username and password are required" });
   }
 
-  const result = await pool.query(
-    "SELECT id, username, password_hash, role FROM users WHERE username = $1",
-    [username]
-  );
+  const pool = await poolPromise;
+  const result = await pool.request()
+    .input("username", username)
+    .query("SELECT id, username, password_hash, role FROM users WHERE username = @username");
 
-  if (result.rows.length === 0) {
+  if (result.recordset.length === 0) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  const user = result.rows[0];
+  const user = result.recordset[0];
   const valid = await bcrypt.compare(password, user.password_hash);
 
   if (!valid) {
@@ -65,17 +65,21 @@ router.post("/users", authMiddleware, requireRole("admin"), async (req, res) => 
 
   try {
     const passwordHash = await bcrypt.hash(password, 10);
-    const result = await pool.query(
-      `INSERT INTO users (username, password_hash, role)
-       VALUES ($1, $2, $3)
-       RETURNING id, username, role, created_at`,
-      [username.trim(), passwordHash, normalizedRole]
-    );
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input("username", username.trim())
+      .input("passwordHash", passwordHash)
+      .input("role", normalizedRole)
+      .query(`
+        INSERT INTO users (username, password_hash, role)
+        OUTPUT inserted.id, inserted.username, inserted.role, inserted.created_at
+        VALUES (@username, @passwordHash, @role)
+      `);
 
-    return res.status(201).json(result.rows[0]);
+    return res.status(201).json(result.recordset[0]);
   } catch (error) {
-    // 23505 is PostgreSQL's unique_violation
-    if (error.code === "23505") {
+    // 2627 is SQL Server's unique constraint violation
+    if (error.number === 2627) {
       return res.status(409).json({ error: "username already exists" });
     }
     throw error;
@@ -83,10 +87,11 @@ router.post("/users", authMiddleware, requireRole("admin"), async (req, res) => 
 });
 
 router.get("/users", authMiddleware, requireRole("admin"), async (req, res) => {
-  const result = await pool.query(
+  const pool = await poolPromise;
+  const result = await pool.request().query(
     "SELECT id, username, role, created_at FROM users ORDER BY id ASC"
   );
-  return res.json(result.rows);
+  return res.json(result.recordset);
 });
 
 export default router;
