@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useLayoutEffect, useState } from "react";
+import React, { useCallback, useLayoutEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -27,7 +27,7 @@ export default function ServiceCallListScreen({ navigation, onLogout }) {
   const loadServiceCalls = async () => {
     setLoading(true);
     try {
-      const response = await api.get("/service-calls");
+      const response = await api.get("/service-calls?status=PENDING");
       setItems(response.data || []);
     } finally {
       setLoading(false);
@@ -61,7 +61,7 @@ export default function ServiceCallListScreen({ navigation, onLogout }) {
   return (
     <View style={styles.container}>
       <View style={styles.headerBlock}>
-        <Text style={styles.heading}>Assigned Calls</Text>
+        <Text style={styles.heading}>Pending Calls</Text>
         <Text style={styles.subheading}>Tap a call to view details and submit report.</Text>
       </View>
 

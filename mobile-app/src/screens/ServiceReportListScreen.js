@@ -45,9 +45,9 @@ export default function ServiceReportListScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>
-        {serviceCallId ? `Reports for Call #${serviceCallId}` : "All Service Reports"}
+        {serviceCallId ? `Reports for Call #${serviceCallId}` : "Service Reports (Completed)"}
       </Text>
-      <Text style={styles.subheading}>Tap a report to view full details.</Text>
+      <Text style={styles.subheading}>View completed calls and submitted reports.</Text>
 
       {loading && items.length === 0 ? (
         <ActivityIndicator size="large" color={theme.colors.primary} />
