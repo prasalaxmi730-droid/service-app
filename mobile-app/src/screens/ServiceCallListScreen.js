@@ -97,28 +97,23 @@ export default function ServiceCallListScreen({ navigation, onLogout }) {
     <View style={styles.container}>
       {loading && items.length === 0 ? (
         <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
+  return (
+    <View style={styles.container}>
+      <View style={styles.headerBlock}>
+        <Text style={styles.heading}>Pending Calls</Text>
+        <Text style={styles.subheading}>Tasks waiting for your FSR submission.</Text>
+      </View>
+
+      {loading && items.length === 0 ? (
+        <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 40 }} />
       ) : (
         <FlatList
-          data={[]} // Triggering headers for sections
-          ListHeaderComponent={() => (
-            <>
-              <View style={styles.headerBlock}>
-                <Text style={styles.heading}>Pending Calls</Text>
-                <Text style={styles.subheading}>Tasks waiting for your FSR submission.</Text>
-              </View>
-              {pendingCalls.map(item => <View key={item.id}>{renderItem({ item })}</View>)}
-              {pendingCalls.length === 0 && <Text style={styles.empty}>No pending calls</Text>}
-
-              <View style={styles.headerBlock}>
-                <Text style={styles.heading}>Completed Calls</Text>
-                <Text style={styles.subheading}>FSRs already submitted.</Text>
-              </View>
-              {completedCalls.map(item => <View key={item.id}>{renderItem({ item })}</View>)}
-              {completedCalls.length === 0 && <Text style={styles.empty}>No completed calls</Text>}
-            </>
-          )}
+          data={pendingCalls}
+          keyExtractor={item => String(item.id)}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={loadServiceCalls} />}
           contentContainerStyle={{ paddingBottom: 30 }}
+          renderItem={renderItem}
+          ListEmptyComponent={<Text style={styles.empty}>No pending calls found</Text>}
         />
       )}
     </View>
