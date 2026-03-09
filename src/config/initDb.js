@@ -120,7 +120,16 @@ export const initDB = async () => {
       );
     }
 
-    // Ensure unique constraint exists on sap_call_id (may be missing if table was created in a prior failed run)
+    // Ensure unique constraint exists on sap_call_id
+    // First, clean up any duplicate sap_call_id rows (keep the one with lowest id)
+    await client.query(`
+      DELETE FROM service_calls a
+      USING service_calls b
+      WHERE a.sap_call_id IS NOT NULL
+        AND a.sap_call_id = b.sap_call_id
+        AND a.id > b.id;
+    `);
+
     await client.query(`
       DO $$
       BEGIN
