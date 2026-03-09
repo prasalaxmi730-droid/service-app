@@ -5,7 +5,6 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import LoginScreen from "./src/screens/LoginScreen";
-import SplashScreen from "./src/screens/SplashScreen";
 import ServiceCallListScreen from "./src/screens/ServiceCallListScreen";
 import ServiceCallDetailScreen from "./src/screens/ServiceCallDetailScreen";
 import ServiceReportFormScreen from "./src/screens/ServiceReportFormScreen";
@@ -44,7 +43,6 @@ const screenOptions = {
 export default function App() {
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(true);
-  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -70,10 +68,6 @@ export default function App() {
     setAuthToken("");
     await AsyncStorage.removeItem("authToken");
   };
-
-  if (showSplash) {
-    return <SplashScreen onFinish={() => setShowSplash(false)} />;
-  }
 
   if (loading) {
     return (
