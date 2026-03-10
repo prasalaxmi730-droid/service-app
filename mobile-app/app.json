@@ -3,9 +3,11 @@
     "name": "prasa",
     "slug": "prasa",
     "version": "1.0.0",
+    "sdkVersion": "54.0.0",
     "orientation": "portrait",
     "icon": "./assets/prasa_icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/prasa_splash.png",
       "resizeMode": "contain",
