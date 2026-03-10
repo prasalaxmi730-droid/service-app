@@ -18,7 +18,7 @@ router.get("/", authMiddleware, async (req, res) => {
       request.input("serviceCallId", serviceCallId);
       queryText = `SELECT sr.id, sr.service_call_id, sr.technician_name, sr.visit_date, 
                           sr.resolution_notes, sr.sync_status, sr.photo_url, sr.signature_data,
-                          sc.customer_name, sc.sap_call_id, sc.status
+                          sc.customer_name, sc.sap_call_id, sc.status AS status
                    FROM service_reports sr
                    JOIN service_calls sc ON sc.id = sr.service_call_id
                    WHERE sr.service_call_id = @serviceCallId
@@ -26,7 +26,7 @@ router.get("/", authMiddleware, async (req, res) => {
     } else {
       queryText = `SELECT sr.id, sr.service_call_id, sr.technician_name, sr.visit_date, 
                           sr.resolution_notes, sr.sync_status, sr.photo_url, sr.signature_data,
-                          sc.customer_name, sc.sap_call_id, sc.status
+                          sc.customer_name, sc.sap_call_id, sc.status AS status
                    FROM service_reports sr
                    JOIN service_calls sc ON sc.id = sr.service_call_id
                    ORDER BY sr.id DESC`;
@@ -37,7 +37,7 @@ router.get("/", authMiddleware, async (req, res) => {
       request.input("serviceCallId", serviceCallId);
       queryText = `SELECT sr.id, sr.service_call_id, sr.technician_name, sr.visit_date, 
                           sr.resolution_notes, sr.sync_status, sr.photo_url, sr.signature_data,
-                          sc.customer_name, sc.sap_call_id, sc.status
+                          sc.customer_name, sc.sap_call_id, sc.status AS status
                    FROM service_reports sr
                    JOIN service_calls sc ON sc.id = sr.service_call_id
                    WHERE sr.service_call_id = @serviceCallId
@@ -46,7 +46,7 @@ router.get("/", authMiddleware, async (req, res) => {
     } else {
       queryText = `SELECT sr.id, sr.service_call_id, sr.technician_name, sr.visit_date, 
                           sr.resolution_notes, sr.sync_status, sr.photo_url, sr.signature_data,
-                          sc.customer_name, sc.sap_call_id, sc.status
+                          sc.customer_name, sc.sap_call_id, sc.status AS status
                    FROM service_reports sr
                    JOIN service_calls sc ON sc.id = sr.service_call_id
                    WHERE sc.assigned_technician = @technician OR sr.technician_name = @technician
