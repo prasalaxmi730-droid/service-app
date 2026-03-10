@@ -16,33 +16,41 @@ router.get("/", authMiddleware, async (req, res) => {
   if (isAdmin) {
     if (serviceCallId) {
       request.input("serviceCallId", serviceCallId);
-      queryText = `SELECT sr.*, sc.customer_name, sc.sap_call_id, sc.status
-                 FROM service_reports sr
-                 JOIN service_calls sc ON sc.id = sr.service_call_id
-                 WHERE sr.service_call_id = @serviceCallId
-                 ORDER BY sr.id DESC`;
+      queryText = `SELECT sr.id, sr.service_call_id, sr.technician_name, sr.visit_date, 
+                          sr.resolution_notes, sr.sync_status, sr.photo_url, sr.signature_data,
+                          sc.customer_name, sc.sap_call_id, sc.status
+                   FROM service_reports sr
+                   JOIN service_calls sc ON sc.id = sr.service_call_id
+                   WHERE sr.service_call_id = @serviceCallId
+                   ORDER BY sr.id DESC`;
     } else {
-      queryText = `SELECT sr.*, sc.customer_name, sc.sap_call_id, sc.status
-                 FROM service_reports sr
-                 JOIN service_calls sc ON sc.id = sr.service_call_id
-                 ORDER BY sr.id DESC`;
+      queryText = `SELECT sr.id, sr.service_call_id, sr.technician_name, sr.visit_date, 
+                          sr.resolution_notes, sr.sync_status, sr.photo_url, sr.signature_data,
+                          sc.customer_name, sc.sap_call_id, sc.status
+                   FROM service_reports sr
+                   JOIN service_calls sc ON sc.id = sr.service_call_id
+                   ORDER BY sr.id DESC`;
     }
   } else {
     request.input("technician", technician);
     if (serviceCallId) {
       request.input("serviceCallId", serviceCallId);
-      queryText = `SELECT sr.*, sc.customer_name, sc.sap_call_id, sc.status
-                 FROM service_reports sr
-                 JOIN service_calls sc ON sc.id = sr.service_call_id
-                 WHERE sr.service_call_id = @serviceCallId
-                   AND (sc.assigned_technician = @technician OR sr.technician_name = @technician)
-                 ORDER BY sr.id DESC`;
+      queryText = `SELECT sr.id, sr.service_call_id, sr.technician_name, sr.visit_date, 
+                          sr.resolution_notes, sr.sync_status, sr.photo_url, sr.signature_data,
+                          sc.customer_name, sc.sap_call_id, sc.status
+                   FROM service_reports sr
+                   JOIN service_calls sc ON sc.id = sr.service_call_id
+                   WHERE sr.service_call_id = @serviceCallId
+                     AND (sc.assigned_technician = @technician OR sr.technician_name = @technician)
+                   ORDER BY sr.id DESC`;
     } else {
-      queryText = `SELECT sr.*, sc.customer_name, sc.sap_call_id, sc.status
-                 FROM service_reports sr
-                 JOIN service_calls sc ON sc.id = sr.service_call_id
-                 WHERE sc.assigned_technician = @technician OR sr.technician_name = @technician
-                 ORDER BY sr.id DESC`;
+      queryText = `SELECT sr.id, sr.service_call_id, sr.technician_name, sr.visit_date, 
+                          sr.resolution_notes, sr.sync_status, sr.photo_url, sr.signature_data,
+                          sc.customer_name, sc.sap_call_id, sc.status
+                   FROM service_reports sr
+                   JOIN service_calls sc ON sc.id = sr.service_call_id
+                   WHERE sc.assigned_technician = @technician OR sr.technician_name = @technician
+                   ORDER BY sr.id DESC`;
     }
   }
 

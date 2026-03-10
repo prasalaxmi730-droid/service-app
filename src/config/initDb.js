@@ -122,24 +122,31 @@ export const initDB = async () => {
       .query("INSERT INTO users (username, password_hash, role) VALUES (@username, @passwordHash, @role)");
   }
 
-  // Seed default Service Calls
-  await pool.request().query(`
-    IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2001')
-    BEGIN
-      INSERT INTO service_calls (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-      VALUES ('SAP-2001', 'Delta Foods', 'Bengaluru', 'Cooling unit temperature spikes', 'PENDING', 'Ravi', 'HIGH', CAST(GETDATE() AS DATE), 'PENDING')
-    END
+    // Seed default Service Calls
+    await pool.request().query(`
+      IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2001')
+      BEGIN
+        INSERT INTO service_calls (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+        VALUES ('SAP-2001', 'Delta Foods', 'Bengaluru', 'Cooling unit temperature spikes', 'PENDING', 'technician', 'HIGH', CAST(GETDATE() AS DATE), 'PENDING')
+      END
+  
+      IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2002')
+      BEGIN
+        INSERT INTO service_calls (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+        VALUES ('SAP-2002', 'Metro Hospitals', 'Hyderabad', 'Generator auto-start failure', 'PENDING', 'technician', 'MEDIUM', CAST(DATEADD(day, 1, GETDATE()) AS DATE), 'PENDING')
+      END
+  
+      IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2003')
+      BEGIN
+        INSERT INTO service_calls (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+        VALUES ('SAP-2003', 'Skyline Textiles', 'Chennai', 'Compressor vibration above threshold', 'PENDING', 'technician', 'LOW', CAST(DATEADD(day, 2, GETDATE()) AS DATE), 'PENDING')
+      END
 
-    IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2002')
-    BEGIN
-      INSERT INTO service_calls (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-      VALUES ('SAP-2002', 'Metro Hospitals', 'Hyderabad', 'Generator auto-start failure', 'PENDING', 'Ravi', 'MEDIUM', CAST(DATEADD(day, 1, GETDATE()) AS DATE), 'PENDING')
-    END
-
-    IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-2003')
-    BEGIN
-      INSERT INTO service_calls (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
-      VALUES ('SAP-2003', 'Skyline Textiles', 'Chennai', 'Compressor vibration above threshold', 'PENDING', 'Ravi', 'LOW', CAST(DATEADD(day, 2, GETDATE()) AS DATE), 'PENDING')
-    END
-  `);
-};
+      -- Always ensure at least one fresh pending call for testing
+      IF NOT EXISTS (SELECT 1 FROM service_calls WHERE customer_name = 'Prasa Test Customer')
+      BEGIN
+        INSERT INTO service_calls (customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+        VALUES ('Prasa Test Customer', 'Main Office', 'Maintenance Check', 'PENDING', 'technician', 'MEDIUM', CAST(GETDATE() AS DATE), 'PENDING')
+      END
+    `);
+  };
