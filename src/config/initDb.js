@@ -148,5 +148,30 @@ export const initDB = async () => {
         INSERT INTO service_calls (customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
         VALUES ('Prasa Test Customer', 'Main Office', 'Maintenance Check', 'PENDING', 'technician', 'MEDIUM', CAST(GETDATE() AS DATE), 'PENDING')
       END
+
+      -- Adding 4 more pending calls as requested
+      IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-3001')
+      BEGIN
+        INSERT INTO service_calls (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+        VALUES ('SAP-3001', 'Green Valley Resorts', 'Mysuru', 'Solar panel cleaning and inverter check', 'PENDING', 'technician', 'LOW', CAST(DATEADD(day, 3, GETDATE()) AS DATE), 'PENDING')
+      END
+
+      IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-3002')
+      BEGIN
+        INSERT INTO service_calls (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+        VALUES ('SAP-3002', 'Blue Chip IT Solutions', 'Electronic City', 'Server room AC leakage repair', 'PENDING', 'technician', 'HIGH', CAST(GETDATE() AS DATE), 'PENDING')
+      END
+
+      IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-3003')
+      BEGIN
+        INSERT INTO service_calls (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+        VALUES ('SAP-3003', 'Evergreen Apartment', 'Whitefield', 'Lift motor lubrication and wire inspection', 'PENDING', 'technician', 'MEDIUM', CAST(DATEADD(day, 1, GETDATE()) AS DATE), 'PENDING')
+      END
+
+      IF NOT EXISTS (SELECT 1 FROM service_calls WHERE sap_call_id = 'SAP-3004')
+      BEGIN
+        INSERT INTO service_calls (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status)
+        VALUES ('SAP-3004', 'Sunrise Healthcare', 'Jayanagar', 'Backup UPS battery replacement', 'PENDING', 'technician', 'HIGH', CAST(GETDATE() AS DATE), 'PENDING')
+      END
     `);
   };
