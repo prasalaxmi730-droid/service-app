@@ -2,8 +2,9 @@ import express from "express";
 import fs from "fs";
 import multer from "multer";
 import path from "path";
-import { poolPromise } from "../config/db.js";
+import { query } from "../config/db.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
+
 const router = express.Router();
 
 const uploadsDir = path.resolve("uploads");
@@ -59,20 +60,20 @@ router.post("/", authMiddleware, upload.single("photo"), async (req, res) => {
     return res.status(400).json({ error: "signature_data is required" });
   }
 
-  const pool = await poolPromise;
-  const callResult = await pool.request()
-    .input("service_call_id", service_call_id)
-    .query(`
+  const callResult = await query(
+    `
       SELECT id, sap_call_id, assigned_technician, status
       FROM service_calls
-      WHERE id = @service_call_id
-    `);
+      WHERE id = $1
+    `,
+    [service_call_id]
+  );
 
-  if (callResult.recordset.length === 0) {
+  if (callResult.rows.length === 0) {
     return res.status(404).json({ error: "Service call not found" });
   }
 
-  const call = callResult.recordset[0];
+  const call = callResult.rows[0];
   const isAdmin = req.user?.role === "admin";
   if (!isAdmin && call.assigned_technician && call.assigned_technician !== req.user.username) {
     return res.status(403).json({ error: "Forbidden" });
@@ -85,46 +86,46 @@ router.post("/", authMiddleware, upload.single("photo"), async (req, res) => {
   }
 
   const effectiveTechnicianName = isAdmin ? normalizedTechnicianName : req.user.username;
+  const photoUrl = `/uploads/${path.basename(req.file.path)}`;
 
-  const photoUrl = req.file ? `/uploads/${path.basename(req.file.path)}` : null;
+  const reportResult = await query(
+    `
+      INSERT INTO service_reports (
+        service_call_id,
+        technician_name,
+        visit_date,
+        resolution_notes,
+        photo_url,
+        signature_data,
+        sync_status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, 'PENDING')
+      RETURNING *
+    `,
+    [
+      service_call_id,
+      effectiveTechnicianName,
+      normalizedVisitDate,
+      normalizedResolutionNotes,
+      photoUrl,
+      normalizedSignatureData,
+    ]
+  );
 
-  const request = pool.request();
-  request.input("service_call_id", service_call_id);
-  request.input("technician_name", effectiveTechnicianName);
-  request.input("visit_date", normalizedVisitDate);
-  request.input("resolution_notes", normalizedResolutionNotes);
-  if (photoUrl) request.input("photo_url", photoUrl);
-  request.input("signature_data", normalizedSignatureData);
-
-  const reportResult = await request.query(`
-    INSERT INTO service_reports
-      (service_call_id, technician_name, visit_date, resolution_notes, photo_url, signature_data, sync_status)
-    OUTPUT inserted.*
-    VALUES 
-      (@service_call_id, 
-       @technician_name, 
-       @visit_date, 
-       @resolution_notes, 
-       ${photoUrl ? "@photo_url" : "NULL"}, 
-       @signature_data, 
-       'PENDING')
-  `);
-
-  const createdReport = reportResult.recordset[0];
-  
-  await pool.request()
-    .input("id", service_call_id)
-    .query(`
+  await query(
+    `
       UPDATE service_calls
       SET status = 'COMPLETED',
           sync_status = 'PENDING',
           sync_attempts = 0,
           sync_error = NULL,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = @id
-    `);
+      WHERE id = $1
+    `,
+    [service_call_id]
+  );
 
-  return res.status(201).json(createdReport);
+  return res.status(201).json(reportResult.rows[0]);
 });
 
 export default router;

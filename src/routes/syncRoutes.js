@@ -1,5 +1,5 @@
 import express from "express";
-import { poolPromise } from "../config/db.js";
+import { query } from "../config/db.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import {
   fetchServiceCallsFromSAP,
@@ -21,8 +21,6 @@ router.post("/", authMiddleware, async (req, res) => {
 
   const sapCalls = await fetchServiceCallsFromSAP();
   summary.pulledFromSAP = sapCalls.length;
-  
-  const pool = await poolPromise;
 
   for (const call of sapCalls) {
     const sapCallId = call.sap_call_id || call.sapCallId || call.id;
@@ -32,53 +30,65 @@ router.post("/", authMiddleware, async (req, res) => {
       continue;
     }
 
-    const request = pool.request();
-    request.input("sap_call_id", String(sapCallId));
-    request.input("customer_name", customerName);
-    request.input("location", call.location || null);
-    request.input("problem_description", call.problem_description || call.problemDescription || null);
-    request.input("status", call.status || "PENDING");
-    request.input("assigned_technician", call.assigned_technician || call.assignedTechnician || null);
-    request.input("priority", call.priority || "MEDIUM");
-    request.input("scheduled_date", call.scheduled_date || call.scheduledDate || null);
-
-    await request.query(`
-      MERGE INTO service_calls WITH (HOLDLOCK) AS target
-      USING (SELECT @sap_call_id AS sap_call_id) AS source
-      ON target.sap_call_id = source.sap_call_id
-      WHEN MATCHED THEN
-        UPDATE SET
-          customer_name = @customer_name,
-          location = @location,
-          problem_description = @problem_description,
-          status = @status,
-          assigned_technician = @assigned_technician,
-          priority = @priority,
-          scheduled_date = @scheduled_date,
-          sync_status = 'SYNCED',
-          last_synced_at = CURRENT_TIMESTAMP,
-          sync_error = NULL,
-          updated_at = CURRENT_TIMESTAMP
-      WHEN NOT MATCHED THEN
-        INSERT (sap_call_id, customer_name, location, problem_description, status, assigned_technician, priority, scheduled_date, sync_status, last_synced_at, sync_attempts, sync_error)
-        VALUES (@sap_call_id, @customer_name, @location, @problem_description, @status, @assigned_technician, @priority, @scheduled_date, 'SYNCED', CURRENT_TIMESTAMP, 0, NULL);
-    `);
+    await query(
+      `
+        INSERT INTO service_calls (
+          sap_call_id,
+          customer_name,
+          location,
+          problem_description,
+          status,
+          assigned_technician,
+          priority,
+          scheduled_date,
+          sync_status,
+          last_synced_at,
+          sync_attempts,
+          sync_error,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'SYNCED', CURRENT_TIMESTAMP, 0, NULL, CURRENT_TIMESTAMP)
+        ON CONFLICT (sap_call_id) DO UPDATE
+        SET customer_name = EXCLUDED.customer_name,
+            location = EXCLUDED.location,
+            problem_description = EXCLUDED.problem_description,
+            status = EXCLUDED.status,
+            assigned_technician = EXCLUDED.assigned_technician,
+            priority = EXCLUDED.priority,
+            scheduled_date = EXCLUDED.scheduled_date,
+            sync_status = 'SYNCED',
+            last_synced_at = CURRENT_TIMESTAMP,
+            sync_error = NULL,
+            updated_at = CURRENT_TIMESTAMP
+      `,
+      [
+        String(sapCallId),
+        customerName,
+        call.location || null,
+        call.problem_description || call.problemDescription || null,
+        call.status || "PENDING",
+        call.assigned_technician || call.assignedTechnician || null,
+        call.priority || "MEDIUM",
+        call.scheduled_date || call.scheduledDate || null,
+      ]
+    );
 
     summary.upsertedServiceCalls += 1;
   }
 
-  const pendingReports = await pool.request()
-    .input("maxRetries", maxRetries)
-    .query(`
+  const pendingReports = await query(
+    `
       SELECT sr.*, sc.sap_call_id
       FROM service_reports sr
       JOIN service_calls sc ON sc.id = sr.service_call_id
       WHERE sr.sync_status IN ('PENDING', 'FAILED')
-        AND sr.sync_attempts < @maxRetries
+        AND sr.sync_attempts < $1
       ORDER BY sr.id ASC
-    `);
+    `,
+    [maxRetries]
+  );
 
-  for (const report of pendingReports.recordset) {
+  for (const report of pendingReports.rows) {
     try {
       const result = await pushServiceReportToSAP(report);
 
@@ -87,31 +97,32 @@ router.post("/", authMiddleware, async (req, res) => {
         continue;
       }
 
-      await pool.request()
-        .input("id", report.id)
-        .query(`
+      await query(
+        `
           UPDATE service_reports
           SET sync_status = 'SYNCED',
               sync_attempts = sync_attempts + 1,
               last_synced_at = CURRENT_TIMESTAMP,
               sync_error = NULL,
               updated_at = CURRENT_TIMESTAMP
-          WHERE id = @id
-        `);
+          WHERE id = $1
+        `,
+        [report.id]
+      );
 
       summary.pushedReports += 1;
     } catch (error) {
-      await pool.request()
-        .input("id", report.id)
-        .input("error", error.message || "Failed to sync report")
-        .query(`
+      await query(
+        `
           UPDATE service_reports
           SET sync_status = 'FAILED',
               sync_attempts = sync_attempts + 1,
-              sync_error = @error,
+              sync_error = $2,
               updated_at = CURRENT_TIMESTAMP
-          WHERE id = @id
-        `);
+          WHERE id = $1
+        `,
+        [report.id, error.message || "Failed to sync report"]
+      );
 
       summary.reportPushFailed += 1;
     }
