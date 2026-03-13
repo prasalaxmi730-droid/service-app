@@ -14,6 +14,23 @@ import SignatureScreen from "react-native-signature-canvas";
 import { api } from "../services/api";
 import { theme } from "../theme";
 
+const getPhotoUploadPart = photo => {
+  const uri = photo?.uri;
+  if (!uri) {
+    return null;
+  }
+
+  const extensionMatch = uri.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+  const extension = extensionMatch?.[1]?.toLowerCase() || "jpg";
+  const mimeType = photo.mimeType || `image/${extension === "jpg" ? "jpeg" : extension}`;
+
+  return {
+    uri,
+    name: photo.fileName || `report-${Date.now()}.${extension}`,
+    type: mimeType,
+  };
+};
+
 export default function ServiceReportFormScreen({ route, navigation }) {
   const { serviceCall } = route.params;
   const [technicianName, setTechnicianName] = useState(serviceCall.assigned_technician || "");
@@ -22,6 +39,7 @@ export default function ServiceReportFormScreen({ route, navigation }) {
   const [photo, setPhoto] = useState(null);
   const [signatureData, setSignatureData] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [pendingSubmission, setPendingSubmission] = useState(false);
   const signatureRef = useRef(null);
 
   const pickPhoto = async () => {
@@ -43,33 +61,47 @@ export default function ServiceReportFormScreen({ route, navigation }) {
 
   const handleSignatureOk = signature => {
     setSignatureData(signature);
+    if (pendingSubmission) {
+      submitReport(signature);
+    }
   };
 
-  const submitReport = async () => {
-    if (!technicianName || !visitDate || !resolutionNotes) {
+  const handleSignatureEmpty = () => {
+    if (pendingSubmission) {
+      setPendingSubmission(false);
+      setSubmitting(false);
+      Alert.alert("Validation", "Please add and save a signature before submitting.");
+    }
+  };
+
+  const submitReport = async currentSignature => {
+    const normalizedTechnicianName = technicianName.trim();
+    const normalizedVisitDate = visitDate.trim();
+    const normalizedResolutionNotes = resolutionNotes.trim();
+    const normalizedSignature = (currentSignature ?? signatureData ?? "").trim();
+
+    if (!normalizedTechnicianName || !normalizedVisitDate || !normalizedResolutionNotes) {
       Alert.alert("Validation", "Fill all required fields");
       return;
     }
 
     try {
       setSubmitting(true);
+      setPendingSubmission(false);
 
       const form = new FormData();
       form.append("service_call_id", String(serviceCall.id));
-      form.append("technician_name", technicianName);
-      form.append("visit_date", visitDate);
-      form.append("resolution_notes", resolutionNotes);
-      form.append("signature_data", signatureData);
+      form.append("technician_name", normalizedTechnicianName);
+      form.append("visit_date", normalizedVisitDate);
+      form.append("resolution_notes", normalizedResolutionNotes);
+      form.append("signature_data", normalizedSignature);
 
-      if (photo) {
-        form.append("photo", {
-          uri: photo.uri,
-          name: `report-${Date.now()}.jpg`,
-          type: photo.mimeType || "image/jpeg",
-        });
+      const photoUploadPart = getPhotoUploadPart(photo);
+      if (photoUploadPart) {
+        form.append("photo", photoUploadPart);
       }
 
-      await api.post("/submit-fsr", form, {
+      await api.post("/submit-report", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -80,6 +112,22 @@ export default function ServiceReportFormScreen({ route, navigation }) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmitPress = () => {
+    if (!photo) {
+      Alert.alert("Validation", "Please select a service photo before submitting.");
+      return;
+    }
+
+    if (!signatureRef.current) {
+      Alert.alert("Validation", "Signature pad is not ready yet. Please try again.");
+      return;
+    }
+
+    setSubmitting(true);
+    setPendingSubmission(true);
+    signatureRef.current.readSignature();
   };
 
   return (
@@ -119,6 +167,7 @@ export default function ServiceReportFormScreen({ route, navigation }) {
         <SignatureScreen
           ref={signatureRef}
           onOK={handleSignatureOk}
+          onEmpty={handleSignatureEmpty}
           descriptionText="Sign in box"
           clearText="Clear"
           confirmText="Save"
@@ -130,7 +179,7 @@ export default function ServiceReportFormScreen({ route, navigation }) {
         />
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={submitReport} disabled={submitting}>
+      <TouchableOpacity style={styles.button} onPress={handleSubmitPress} disabled={submitting}>
         <Text style={styles.buttonText}>{submitting ? "Submitting..." : "Submit Report"}</Text>
       </TouchableOpacity>
     </ScrollView>

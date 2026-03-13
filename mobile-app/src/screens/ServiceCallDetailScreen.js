@@ -12,6 +12,8 @@ const normalizeStatus = status => (status === "OPEN" ? "PENDING" : status || "PE
 
 export default function ServiceCallDetailScreen({ route, navigation }) {
   const { call } = route.params;
+  const normalizedStatus = normalizeStatus(call.status);
+  const isCompleted = normalizedStatus === "COMPLETED";
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -22,17 +24,17 @@ export default function ServiceCallDetailScreen({ route, navigation }) {
             style={[
               styles.statusPill,
               {
-                backgroundColor: `${statusColor[normalizeStatus(call.status)] || theme.colors.primary}22`,
+                backgroundColor: `${statusColor[normalizedStatus] || theme.colors.primary}22`,
               },
             ]}
           >
             <Text
               style={[
                 styles.statusText,
-                { color: statusColor[normalizeStatus(call.status)] || theme.colors.primary },
+                { color: statusColor[normalizedStatus] || theme.colors.primary },
               ]}
             >
-              {normalizeStatus(call.status)}
+              {normalizedStatus}
             </Text>
           </View>
         </View>
@@ -50,12 +52,21 @@ export default function ServiceCallDetailScreen({ route, navigation }) {
         <Text style={styles.problemText}>{call.problem_description || "No description"}</Text>
       </View>
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate("ServiceReportForm", { serviceCall: call })}
-      >
-        <Text style={styles.buttonText}>Create Service Report</Text>
-      </TouchableOpacity>
+      {isCompleted ? (
+        <TouchableOpacity
+          style={[styles.button, styles.secondaryButton]}
+          onPress={() => navigation.navigate("ServiceReportList", { serviceCallId: call.id })}
+        >
+          <Text style={styles.buttonText}>View Completed Report</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => navigation.navigate("ServiceReportForm", { serviceCall: call })}
+        >
+          <Text style={styles.buttonText}>Create Service Report</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }
@@ -122,6 +133,9 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     paddingVertical: 13,
     alignItems: "center",
+  },
+  secondaryButton: {
+    backgroundColor: theme.colors.primary,
   },
   buttonText: { color: "#fff", fontWeight: "800", letterSpacing: 0.2 },
 });

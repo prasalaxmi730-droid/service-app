@@ -41,6 +41,9 @@ export default function ServiceReportDetailScreen({ route }) {
   const photoUrl = report.photo_url
     ? `${API_BASE_URL}${report.photo_url}`
     : null;
+  const signaturePreviewUri = report.signature_data?.startsWith("data:image")
+    ? report.signature_data
+    : null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -55,10 +58,12 @@ export default function ServiceReportDetailScreen({ route }) {
         <Text style={styles.section}>Resolution Notes</Text>
         <Text style={styles.paragraph}>{report.resolution_notes}</Text>
 
-        <Text style={styles.section}>Signature Data</Text>
-        <Text style={styles.paragraph} numberOfLines={4}>
-          {report.signature_data || "No signature"}
-        </Text>
+        <Text style={styles.section}>Signature</Text>
+        {signaturePreviewUri ? (
+          <Image source={{ uri: signaturePreviewUri }} style={styles.signaturePreview} />
+        ) : (
+          <Text style={styles.paragraph}>No signature saved</Text>
+        )}
       </View>
 
       {photoUrl ? (
@@ -139,11 +144,25 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontSize: 15,
   },
+  section: {
+    color: theme.colors.text,
+    fontWeight: "800",
+    fontSize: 16,
+    marginTop: 18,
+    marginBottom: 8,
+  },
   photo: {
     width: "100%",
     height: 250,
     borderRadius: theme.radius.md,
     marginTop: 10,
     backgroundColor: "#F8FBFF",
+  },
+  signaturePreview: {
+    width: "100%",
+    height: 160,
+    borderRadius: theme.radius.md,
+    backgroundColor: "#F8FBFF",
+    resizeMode: "contain",
   },
 });
