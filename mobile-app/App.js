@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Image, View } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import LoginScreen from "./src/screens/LoginScreen";
-import SplashScreen from "./src/screens/SplashScreen";
 import ServiceCallListScreen from "./src/screens/ServiceCallListScreen";
 import ServiceCallDetailScreen from "./src/screens/ServiceCallDetailScreen";
 import ServiceReportFormScreen from "./src/screens/ServiceReportFormScreen";
@@ -44,7 +43,6 @@ const screenOptions = {
 export default function App() {
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(true);
-  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -71,13 +69,21 @@ export default function App() {
     await AsyncStorage.removeItem("authToken");
   };
 
-  if (showSplash) {
-    return <SplashScreen onFinish={() => setShowSplash(false)} />;
-  }
-
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#FFFFFF",
+        }}
+      >
+        <Image
+          source={require("./assets/prasa-logo.png")}
+          style={{ width: 180, height: 180, marginBottom: 20 }}
+          resizeMode="contain"
+        />
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
